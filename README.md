@@ -127,6 +127,7 @@ srun -n 1 ./tsmm_bench --only required   # 单进程交互式跑一下
 | v1_blocked | 访存分块 | 列主序下 A、B 的列都是连续的长度-k 向量；MR×NR 寄存器分块最大化寄存器复用，KC 分块保证 cache 驻留 |
 | v2_openmp | 多线程 | 对输出 tile 网格并行（输出空间无写冲突），`schedule(runtime)` 可通过 `OMP_SCHEDULE` 切换 static/dynamic/guided 做调度对比与扩展性分析 |
 | v3_avx512 | 向量化 | 沿 k 用 AVX-512 FMA（8 double/ZMM），4×4 寄存器分块共 24 个 ZMM 累加器，尾部标量收尾；非 x86 自动回退标量 |
+| v4_kreduce | k 维归约 | 针对 `m*n` 很小但 `k` 很大的形状（如 T2/O2），把 k 维切给多个线程计算 partial C，再归约；大输出矩阵自动回退到输出 tile 并行 |
 | v9_blas | 对比/参照 | MKL/Accelerate/OpenBLAS dgemm，既是性能上限对比也是正确性参照 |
 
 ### 后续优化方向（待目标机实测反馈）

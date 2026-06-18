@@ -259,23 +259,30 @@ int main(int argc, char** argv) {
         printf("\n");
     }
 
-    // geometric mean of speedups for our best non-blas op (v3) is interesting,
-    // but spec asks for geomean of speedup vs MKL -> compute per-op geomeans.
-    // Here we report geomean over the "v3_avx512" op (the optimized target).
-    auto geomean_for = [&](const char* opname, bool req_only) {
+    // Geometric mean of the best correct non-BLAS implementation per task.
+    // After adding shape-specialized kernels (e.g. v4_kreduce), a single fixed
+    // kernel no longer represents the final optimized result.
+    auto geomean_best = [&](bool req_only) {
         double logsum = 0.0; int cnt = 0;
-        for (const Result& r : results) {
-            if (r.op != opname) continue;
-            if (req_only && !r.required) continue;
-            if (r.speedup > 0.0) { logsum += std::log(r.speedup); ++cnt; }
+        for (const Shape& s : kShapes) {
+            if (only_required && !s.required) continue;
+            if (req_only && !s.required) continue;
+            double best = 0.0;
+            for (const Result& r : results) {
+                if (r.task != s.tag) continue;
+                if (r.op == "v9_blas") continue;
+                if (!r.correct) continue;
+                best = std::max(best, r.speedup);
+            }
+            if (best > 0.0) { logsum += std::log(best); ++cnt; }
         }
         return cnt ? std::exp(logsum / cnt) : 0.0;
     };
 
-    double geo_req = geomean_for("v3_avx512", true);
-    double geo_all = geomean_for("v3_avx512", false);
+    double geo_req = geomean_best(true);
+    double geo_all = geomean_best(false);
 
-    printf("=== Geomean speedup (v3_avx512 vs %s) required=%.3f all=%.3f ===\n",
+    printf("=== Geomean speedup (best non-BLAS vs %s) required=%.3f all=%.3f ===\n",
            backend_name(), geo_req, geo_all);
 
     emit_json(out, results, backend_name(), threads, geo_req, geo_all);

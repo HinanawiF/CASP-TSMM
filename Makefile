@@ -16,7 +16,8 @@ UNAME_S := $(shell uname -s)
 UNAME_M := $(shell uname -m)
 
 SRC      := ops/v0_naive.cpp ops/v1_blocked.cpp ops/v2_openmp.cpp \
-            ops/v3_avx512.cpp ops/v9_blas.cpp ops/registry.cpp benchmark.cpp
+            ops/v3_avx512.cpp ops/v4_kreduce.cpp ops/v9_blas.cpp \
+            ops/registry.cpp benchmark.cpp
 INCLUDE  := -Iinclude
 BIN      := tsmm_bench
 STD      := -std=c++17

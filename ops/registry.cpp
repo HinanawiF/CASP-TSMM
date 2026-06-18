@@ -6,6 +6,7 @@ extern const TsmmOp TSMM_OP_v0_naive;
 extern const TsmmOp TSMM_OP_v1_blocked;
 extern const TsmmOp TSMM_OP_v2_openmp;
 extern const TsmmOp TSMM_OP_v3_avx512;
+extern const TsmmOp TSMM_OP_v4_kreduce;
 extern const TsmmOp TSMM_OP_v9_blas;
 
 static const TsmmOp* kOps[] = {
@@ -13,6 +14,7 @@ static const TsmmOp* kOps[] = {
     &TSMM_OP_v1_blocked,
     &TSMM_OP_v2_openmp,
     &TSMM_OP_v3_avx512,
+    &TSMM_OP_v4_kreduce,
     &TSMM_OP_v9_blas,
 };
 
