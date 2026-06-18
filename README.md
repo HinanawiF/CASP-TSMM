@@ -128,7 +128,7 @@ srun -n 1 ./tsmm_bench --only required   # 单进程交互式跑一下
 | v2_openmp | 多线程 | 对输出 tile 网格并行（输出空间无写冲突），`schedule(runtime)` 可通过 `OMP_SCHEDULE` 切换 static/dynamic/guided 做调度对比与扩展性分析 |
 | v3_avx512 | 向量化 | AVX-512 形状分流：大输出/大 k 使用连续访存 dot4 内核，短 k/小输出使用 8×8 外积内核；非 x86 自动回退标量 |
 | v4_kreduce | k 维归约 | 针对 `m*n` 很小但 `k` 很大的形状（如 T2/O2），把 k 维切给多个线程计算 partial C，再归约；大输出矩阵自动回退到输出 tile 并行 |
-| v5_smallk_packa | 小 k 专用 | 针对 `k<=64` 的形状（T3/O1/O3），每轮先把 A 打包成按行连续布局，再用 AVX-512 连续加载更新 C 的 8 个行元素 |
+| v5_dot_parallel | 输出点并行 dot | 每个 C 元素独立计算连续 dot product，让编译器向量化；实测对 T2 极有效，也可作为 O2/O4 的候选算子 |
 | v9_blas | 对比/参照 | MKL/Accelerate/OpenBLAS dgemm，既是性能上限对比也是正确性参照 |
 
 ### 后续优化方向（待目标机实测反馈）

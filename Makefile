@@ -96,7 +96,7 @@ check-avx512:
 	clang++ -std=c++17 -O3 --target=x86_64-apple-darwin \
 	    -march=skylake-avx512 -mavx512f -mavx512dq -mfma \
 	    -Iinclude -DTSMM_BLAS_ACCELERATE -c ops/v3_avx512.cpp -o /tmp/v3_x86.o
-	@echo "Cross-compiling v5_smallk_packa.cpp for x86-64 + AVX-512 ..."
+	@echo "Cross-compiling v5_smallk_packa.cpp for x86-64 ..."
 	clang++ -std=c++17 -O3 --target=x86_64-apple-darwin \
 	    -march=skylake-avx512 -mavx512f -mavx512dq -mfma \
 	    -Iinclude -DTSMM_BLAS_ACCELERATE -c ops/v5_smallk_packa.cpp -o /tmp/v5_x86.o
