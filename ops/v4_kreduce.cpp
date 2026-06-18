@@ -50,8 +50,11 @@ static int max_threads_runtime() {
 }
 
 static int choose_k_threads(int k, int max_threads) {
-    // Enough work per thread to amortize OpenMP and reduction overhead.
-    int t = std::max(1, k / 2048);
+    // Use more threads than the conservative first version. T2 has only 128
+    // output elements, so output tiling cannot expose parallelism; splitting k
+    // into roughly 1K-element chunks gives 15-16 workers for k=16000, while O2
+    // (k=606841) uses all 96 cores.
+    int t = std::max(1, k / 1024);
     return std::min(max_threads, t);
 }
 
