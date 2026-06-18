@@ -17,7 +17,8 @@ UNAME_M := $(shell uname -m)
 
 SRC      := ops/v0_naive.cpp ops/v1_blocked.cpp ops/v2_openmp.cpp \
             ops/v3_avx512.cpp ops/v4_kreduce.cpp ops/v9_blas.cpp \
-            ops/v5_smallk_packa.cpp ops/registry.cpp benchmark.cpp
+            ops/v5_smallk_packa.cpp ops/v6_smallk_col.cpp \
+            ops/registry.cpp benchmark.cpp
 INCLUDE  := -Iinclude
 BIN      := tsmm_bench
 STD      := -std=c++17
@@ -100,5 +101,9 @@ check-avx512:
 	clang++ -std=c++17 -O3 --target=x86_64-apple-darwin \
 	    -march=skylake-avx512 -mavx512f -mavx512dq -mfma \
 	    -Iinclude -DTSMM_BLAS_ACCELERATE -c ops/v5_smallk_packa.cpp -o /tmp/v5_x86.o
+	@echo "Cross-compiling v6_smallk_col.cpp for x86-64 + AVX-512 ..."
+	clang++ -std=c++17 -O3 --target=x86_64-apple-darwin \
+	    -march=skylake-avx512 -mavx512f -mavx512dq -mfma \
+	    -Iinclude -DTSMM_BLAS_ACCELERATE -c ops/v6_smallk_col.cpp -o /tmp/v6_x86.o
 	@echo "OK: AVX-512 intrinsic kernel compiles. zmm instruction count:"
-	@expr $$(otool -tvV /tmp/v3_x86.o /tmp/v5_x86.o | grep -c zmm)
+	@expr $$(otool -tvV /tmp/v3_x86.o /tmp/v5_x86.o /tmp/v6_x86.o | grep -c zmm)
