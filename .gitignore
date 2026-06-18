@@ -1,0 +1,21 @@
+# 编译产物
+tsmm_bench
+*.o
+*.exe
+
+# 评测结果(运行生成, 不入库)
+web/results.json
+web/scaling/
+
+# slurm 日志
+tsmm_*.out
+tsmm_*.err
+tsmm_scale_*.out
+
+# 课程内部资料, 禁止上传
+*.pptx
+并行处理课程计算平台使用方法.pptx
+
+# 系统/编辑器
+.DS_Store
+*.swp

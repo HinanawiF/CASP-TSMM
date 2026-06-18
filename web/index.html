@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>TSMM 评测结果实时展示</title>
+<style>
+  :root{
+    --bg:#0f1419; --panel:#171c24; --panel2:#1e2530; --line:#2a323d;
+    --txt:#e6edf3; --muted:#8b98a5; --accent:#4cc4ff; --good:#3fb950;
+    --bad:#f85149; --bar:#4cc4ff; --bar2:#7ee787; --gold:#e3b341;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC",sans-serif}
+  header{padding:20px 28px;border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  h1{font-size:20px;margin:0;font-weight:600}
+  .meta{color:var(--muted);font-size:13px;display:flex;gap:18px;flex-wrap:wrap}
+  .meta b{color:var(--txt)}
+  .wrap{padding:24px 28px;max-width:1280px;margin:0 auto}
+  .cards{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:24px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:16px 20px;min-width:180px;flex:1}
+  .card .label{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.5px}
+  .card .val{font-size:26px;font-weight:700;margin-top:6px}
+  .card .val.gold{color:var(--gold)}
+  .card .val.acc{color:var(--accent)}
+  h2{font-size:15px;color:var(--muted);font-weight:600;margin:28px 0 12px;
+    text-transform:uppercase;letter-spacing:.6px}
+  .task-block{background:var(--panel);border:1px solid var(--line);
+    border-radius:12px;padding:18px 20px;margin-bottom:18px}
+  .task-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px}
+  .task-name{font-size:16px;font-weight:600}
+  .task-dim{color:var(--muted);font-size:13px;font-family:ui-monospace,monospace}
+  .badge{font-size:11px;padding:2px 8px;border-radius:6px;margin-left:8px}
+  .badge.req{background:#1f6feb33;color:#79c0ff}
+  .badge.opt{background:#6e768166;color:#c9d1d9}
+  .row{display:grid;grid-template-columns:120px 1fr 90px 70px 60px;
+    align-items:center;gap:12px;padding:5px 0;font-size:13px}
+  .opname{font-family:ui-monospace,monospace;color:var(--txt)}
+  .barbg{background:var(--panel2);border-radius:5px;height:20px;position:relative;overflow:hidden}
+  .barfill{height:100%;background:linear-gradient(90deg,#1f6feb,#4cc4ff);
+    border-radius:5px;transition:width .4s}
+  .barfill.blas{background:linear-gradient(90deg,#d29922,#e3b341)}
+  .gflops{text-align:right;font-variant-numeric:tabular-nums}
+  .speedup{text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
+  .ok{color:var(--good);font-weight:600}
+  .fail{color:var(--bad);font-weight:600}
+  .controls{display:flex;gap:10px;align-items:center;margin-left:auto}
+  button{background:var(--panel2);color:var(--txt);border:1px solid var(--line);
+    padding:7px 14px;border-radius:8px;cursor:pointer;font-size:13px}
+  button:hover{border-color:var(--accent)}
+  .dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}
+  .live .dot{background:var(--good);animation:pulse 1.5s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+  .empty{color:var(--muted);padding:40px;text-align:center}
+  footer{color:var(--muted);font-size:12px;padding:20px 28px;border-top:1px solid var(--line)}
+</style>
+</head>
+<body>
+<header>
+  <h1>TSMM 评测结果 <span style="color:var(--muted);font-weight:400">C = A<sup>T</sup>B</span></h1>
+  <div class="meta" id="meta"></div>
+  <div class="controls">
+    <span class="live" id="liveind"><span class="dot"></span><span style="font-size:12px;color:var(--muted)">自动刷新</span></span>
+    <button id="toggle">暂停</button>
+    <button id="refresh">立即刷新</button>
+  </div>
+</header>
+<div class="wrap">
+  <div class="cards" id="cards"></div>
+  <div id="tasks"></div>
+</div>
+<footer>
+  数据来源 <code>results.json</code>（由 benchmark 生成）。预热 <span id="fwarm">-</span> 轮，计时 <span id="frep">-</span> 次取平均。
+  GFLOPS = 2·m·n·k / 平均耗时。加速比 = 算子 GFLOPS / BLAS GFLOPS。
+</footer>
+
+<script>
+const JSON_URL = 'results.json';
+let timer = null, running = true;
+
+function fmt(x, d=2){ return (x==null||isNaN(x)) ? '-' : Number(x).toFixed(d); }
+
+async function load(){
+  try{
+    const res = await fetch(JSON_URL + '?t=' + Date.now());
+    if(!res.ok) throw new Error(res.status);
+    const data = await res.json();
+    render(data);
+  }catch(e){
+    document.getElementById('tasks').innerHTML =
+      '<div class="empty">尚未找到 results.json，请先运行 <code>make run</code> 生成评测结果。<br>('+e+')</div>';
+  }
+}
+
+function render(data){
+  document.getElementById('meta').innerHTML =
+    `后端 <b>${data.backend}</b>` +
+    `&nbsp;|&nbsp; 线程 <b>${data.threads}</b>` +
+    `&nbsp;|&nbsp; warmup <b>${data.warmup}</b> / repeat <b>${data.repeat}</b>`;
+  document.getElementById('fwarm').textContent = data.warmup;
+  document.getElementById('frep').textContent = data.repeat;
+
+  // summary cards
+  const ntasks = new Set(data.results.map(r=>r.task)).size;
+  const allCorrect = data.results.every(r=>r.correct);
+  document.getElementById('cards').innerHTML = `
+    <div class="card"><div class="label">任务数</div><div class="val acc">${ntasks}</div></div>
+    <div class="card"><div class="label">几何平均加速比 (required)</div><div class="val gold">${fmt(data.geomean_speedup_required,3)}×</div></div>
+    <div class="card"><div class="label">几何平均加速比 (all)</div><div class="val gold">${fmt(data.geomean_speedup_all,3)}×</div></div>
+    <div class="card"><div class="label">正确性</div><div class="val ${allCorrect?'':''}" style="color:${allCorrect?'var(--good)':'var(--bad)'}">${allCorrect?'全部通过':'存在失败'}</div></div>
+  `;
+
+  // group by task
+  const tasks = {};
+  for(const r of data.results){ (tasks[r.task] ||= []).push(r); }
+
+  let html = '';
+  for(const [task, rows] of Object.entries(tasks)){
+    const maxg = Math.max(...rows.map(r=>r.gflops));
+    const r0 = rows[0];
+    const badge = r0.required ? '<span class="badge req">required</span>'
+                              : '<span class="badge opt">optional</span>';
+    html += `<div class="task-block">
+      <div class="task-head">
+        <div><span class="task-name">${task}</span>${badge}</div>
+        <div class="task-dim">m=${r0.m}, n=${r0.n}, k=${r0.k} &nbsp; (${(2*r0.m*r0.n*r0.k/1e9).toFixed(2)} GFLOP)</div>
+      </div>`;
+    for(const r of rows){
+      const w = maxg>0 ? (r.gflops/maxg*100) : 0;
+      const isBlas = r.op==='v9_blas';
+      html += `<div class="row">
+        <span class="opname">${r.op}</span>
+        <div class="barbg"><div class="barfill ${isBlas?'blas':''}" style="width:${w}%"></div></div>
+        <span class="gflops">${fmt(r.gflops)} GF</span>
+        <span class="speedup">${fmt(r.speedup,2)}×</span>
+        <span class="${r.correct?'ok':'fail'}">${r.correct?'OK':'FAIL'}</span>
+      </div>`;
+    }
+    html += `</div>`;
+  }
+  document.getElementById('tasks').innerHTML = html;
+}
+
+function tick(){ if(running) load(); }
+document.getElementById('refresh').onclick = load;
+document.getElementById('toggle').onclick = (e)=>{
+  running = !running;
+  e.target.textContent = running ? '暂停' : '继续';
+  document.getElementById('liveind').style.opacity = running ? 1 : .3;
+};
+load();
+timer = setInterval(tick, 3000);
+</script>
+</body>
+</html>
