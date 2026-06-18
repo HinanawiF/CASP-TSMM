@@ -17,7 +17,7 @@ UNAME_M := $(shell uname -m)
 
 SRC      := ops/v0_naive.cpp ops/v1_blocked.cpp ops/v2_openmp.cpp \
             ops/v3_avx512.cpp ops/v4_kreduce.cpp ops/v9_blas.cpp \
-            ops/registry.cpp benchmark.cpp
+            ops/v5_smallk_packa.cpp ops/registry.cpp benchmark.cpp
 INCLUDE  := -Iinclude
 BIN      := tsmm_bench
 STD      := -std=c++17
@@ -89,12 +89,16 @@ clean:
 # We are on Apple arm64 where __AVX512F__ is undefined, so the intrinsic branch
 # of v3_avx512.cpp normally never gets compiled. This target cross-compiles it
 # for an x86-64 AVX-512 target (using the local macOS SDK headers) so we can
-# verify the Intel code path actually builds and emits zmm/FMA instructions
+# verify the Intel code paths actually build and emit zmm/FMA instructions
 # before shipping it to the cluster. Run:  make check-avx512
 check-avx512:
 	@echo "Cross-compiling v3_avx512.cpp for x86-64 + AVX-512 ..."
 	clang++ -std=c++17 -O3 --target=x86_64-apple-darwin \
 	    -march=skylake-avx512 -mavx512f -mavx512dq -mfma \
 	    -Iinclude -DTSMM_BLAS_ACCELERATE -c ops/v3_avx512.cpp -o /tmp/v3_x86.o
+	@echo "Cross-compiling v5_smallk_packa.cpp for x86-64 + AVX-512 ..."
+	clang++ -std=c++17 -O3 --target=x86_64-apple-darwin \
+	    -march=skylake-avx512 -mavx512f -mavx512dq -mfma \
+	    -Iinclude -DTSMM_BLAS_ACCELERATE -c ops/v5_smallk_packa.cpp -o /tmp/v5_x86.o
 	@echo "OK: AVX-512 intrinsic kernel compiles. zmm instruction count:"
-	@otool -tvV /tmp/v3_x86.o | grep -c zmm
+	@expr $$(otool -tvV /tmp/v3_x86.o /tmp/v5_x86.o | grep -c zmm)
