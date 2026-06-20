@@ -1,0 +1,4 @@
+ops/v6_smallk_col.cpp:57:20: warning: unused function 'compute_scalar_col' [-Wunused-function]
+static inline void compute_scalar_col(const double* packA, const double* B,
+                   ^
+1 warning generated.
