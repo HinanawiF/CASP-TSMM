@@ -129,7 +129,7 @@ srun -n 1 ./tsmm_bench --only required   # 单进程交互式跑一下
 | v3_avx512 | 向量化 | AVX-512 形状分流：大输出/大 k 使用连续访存 dot4 内核，短 k/小输出使用 8×8 外积内核；非 x86 自动回退标量 |
 | v4_kreduce | k 维归约 | 针对 `m*n` 很小但 `k` 很大的形状（如 T2/O2），把 k 维切给多个线程计算 partial C，再归约；大输出矩阵自动回退到输出 tile 并行 |
 | v5_dot_parallel | 输出点并行 dot | 每个 C 元素独立计算连续 dot product，让编译器向量化；实测对 T2 极有效，也可作为 O2/O4 的候选算子 |
-| v6_smallk_col | 小 k 列向量核 | 针对 T3/O1/O3，把 A 打包成 `k×m` 行连续布局，并按 B/C 列静态并行计算整列 C，降低细粒度调度开销 |
+| v6_smallk_col | 超大 n 小 k 列向量核 | 只在 `n` 极大且 `k<=64` 时启用 packed-A 列向量路径（如 O4 候选）；其它形状回退到输出点并行 dot，避免 T3/O1 的打包开销 |
 | v9_blas | 对比/参照 | MKL/Accelerate/OpenBLAS dgemm，既是性能上限对比也是正确性参照 |
 
 ### 后续优化方向（待目标机实测反馈）

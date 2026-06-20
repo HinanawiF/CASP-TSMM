@@ -11,25 +11,25 @@
 #endif
 
 // =============================================================================
-// v6: small-k, column-wise TSMM kernel.
+// v6: huge-n, small-k, column-wise TSMM candidate.
 //   C = A^T * B, column-major.
 //
 // Motivation:
-//   T3=(32,16000,16) and O1=(16,12344,16) are essentially many independent
-//   matrix-vector products:
-//       C[:, c] = A^T * B[:, c]
-//   with k=16. Previous packed-A experiments used too fine a task granularity.
-//   This version parallelizes only over B/C columns; each task computes a whole
-//   output column using row-block vector accumulators.
+//   Intel measurements showed that this column-wise packed-A path is harmful on
+//   T3/O1/O3: the shapes are too small and packing/scheduling overhead dominates.
+//   It still has some value on huge-n small-k shapes such as O4, while disabled
+//   shapes fall back to the robust per-output dot path used by v5.
 //
-// For k<=64 and moderate m, packing A from A[r*k+i] to packA[i*m+r] is cheap.
-// It converts A accesses for C row blocks into contiguous AVX-512 loads.
+// Strategy:
+//   Enable packing only when n is very large. Otherwise compute each C element
+//   independently with contiguous dot products, avoiding catastrophic slowdowns.
 // =============================================================================
 
 namespace {
 constexpr int RB = 8;
 constexpr int SMALLK_MAX_K = 64;
 constexpr int SMALLK_MAX_M = 512;
+constexpr int HUGE_N_MIN = 100000;
 
 struct V6Ctx {
     bool enabled;
@@ -115,9 +115,9 @@ static inline void compute_avx512_col(const double* packA, const double* B,
 #endif
 } // namespace
 
-static void* v6_prepare(int m, int, int k) {
+static void* v6_prepare(int m, int n, int k) {
     V6Ctx* ctx = new V6Ctx;
-    ctx->enabled = (k <= SMALLK_MAX_K && m <= SMALLK_MAX_M);
+    ctx->enabled = (k <= SMALLK_MAX_K && m <= SMALLK_MAX_M && n >= HUGE_N_MIN);
     ctx->m = m;
     ctx->k = k;
     ctx->packA = nullptr;
@@ -161,6 +161,6 @@ static void v6_destroy(void* raw) {
 
 extern const TsmmOp TSMM_OP_v6_smallk_col = {
     "v6_smallk_col",
-    "Small-k column-wise packed-A kernel for T3/O1/O3",
+    "Huge-n small-k column-wise packed-A candidate; otherwise dot fallback",
     v6_prepare, v6_compute, v6_destroy
 };
