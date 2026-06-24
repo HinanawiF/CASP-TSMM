@@ -29,8 +29,8 @@
 
 namespace {
 
-constexpr int WARMUP = 10;
-constexpr int REPEAT = 20;
+int g_warmup = 10;
+int g_repeat = 20;
 
 struct Shape { int m, n, k; const char* tag; bool required; };
 
@@ -100,13 +100,13 @@ Result run_one(const TsmmOp* op, const Shape& s, TsmmLayout layout,
     TsmmProblem p{ s.m, s.n, s.k, A, B, C, layout };
     void* ctx = op->prepare(s.m, s.n, s.k);
 
-    for (int w = 0; w < WARMUP; ++w) op->compute(p, ctx);
+    for (int w = 0; w < g_warmup; ++w) op->compute(p, ctx);
 
     double t0 = now_sec();
-    for (int it = 0; it < REPEAT; ++it) op->compute(p, ctx);
+    for (int it = 0; it < g_repeat; ++it) op->compute(p, ctx);
     double t1 = now_sec();
 
-    double avg = (t1 - t0) / REPEAT;
+    double avg = (t1 - t0) / g_repeat;
     r.avg_ms = avg * 1e3;
     double flops = 2.0 * s.m * s.n * s.k;
     r.gflops = flops / (avg * 1e9);
@@ -124,14 +124,15 @@ Result run_one(const TsmmOp* op, const Shape& s, TsmmLayout layout,
 }
 
 void emit_json(const char* path, const std::vector<Result>& results,
-               const char* backend, int threads, double geo_required,
-               double geo_all) {
+               const char* backend, const char* layout_name, int threads,
+               double geo_required, double geo_all) {
     FILE* f = std::fopen(path, "w");
     if (!f) { std::fprintf(stderr, "cannot open %s\n", path); return; }
     std::fprintf(f, "{\n");
     std::fprintf(f, "  \"backend\": \"%s\",\n", backend);
+    std::fprintf(f, "  \"layout\": \"%s\",\n", layout_name);
     std::fprintf(f, "  \"threads\": %d,\n", threads);
-    std::fprintf(f, "  \"warmup\": %d,\n  \"repeat\": %d,\n", WARMUP, REPEAT);
+    std::fprintf(f, "  \"warmup\": %d,\n  \"repeat\": %d,\n", g_warmup, g_repeat);
     std::fprintf(f, "  \"geomean_speedup_required\": %.4f,\n", geo_required);
     std::fprintf(f, "  \"geomean_speedup_all\": %.4f,\n", geo_all);
     std::fprintf(f, "  \"results\": [\n");
@@ -166,6 +167,7 @@ const char* backend_name() {
 
 int main(int argc, char** argv) {
     // CLI: [--layout col|row] [--out results.json] [--only required|all]
+    //      [--warmup N] [--repeat N] [--op name ...]
     TsmmLayout layout = TSMM_COL_MAJOR;
     const char* out = "web/results.json";
     bool only_required = false;
@@ -180,6 +182,10 @@ int main(int argc, char** argv) {
             only_required = std::strcmp(argv[++i], "required") == 0;
         } else if (!std::strcmp(argv[i], "--op") && i + 1 < argc) {
             op_filter.push_back(argv[++i]);
+        } else if (!std::strcmp(argv[i], "--warmup") && i + 1 < argc) {
+            g_warmup = std::max(0, std::atoi(argv[++i]));
+        } else if (!std::strcmp(argv[i], "--repeat") && i + 1 < argc) {
+            g_repeat = std::max(1, std::atoi(argv[++i]));
         }
     }
 
@@ -193,7 +199,7 @@ int main(int argc, char** argv) {
     printf("=== TSMM Benchmark ===\n");
     printf("layout=%s  backend=%s  threads=%d  warmup=%d repeat=%d\n",
            layout == TSMM_COL_MAJOR ? "col" : "row",
-           backend_name(), threads, WARMUP, REPEAT);
+           backend_name(), threads, g_warmup, g_repeat);
     printf("%-12s %-22s %8s %10s %10s %8s %8s\n",
            "op", "task", "GFLOPS", "avg_ms", "rel_err", "ok", "speedup");
 
@@ -219,11 +225,11 @@ int main(int argc, char** argv) {
             void* rc = blas->prepare(s.m, s.n, s.k);
             blas->compute(rp, rc);  // fill ref
             // time blas for speedup base
-            for (int w = 0; w < WARMUP; ++w) blas->compute(rp, rc);
+            for (int w = 0; w < g_warmup; ++w) blas->compute(rp, rc);
             double t0 = now_sec();
-            for (int it = 0; it < REPEAT; ++it) blas->compute(rp, rc);
+            for (int it = 0; it < g_repeat; ++it) blas->compute(rp, rc);
             double t1 = now_sec();
-            double avg = (t1 - t0) / REPEAT;
+            double avg = (t1 - t0) / g_repeat;
             blas_gflops = (2.0 * s.m * s.n * s.k) / (avg * 1e9);
             blas->destroy(rc);
         }
@@ -285,7 +291,9 @@ int main(int argc, char** argv) {
     printf("=== Geomean speedup (best non-BLAS vs %s) required=%.3f all=%.3f ===\n",
            backend_name(), geo_req, geo_all);
 
-    emit_json(out, results, backend_name(), threads, geo_req, geo_all);
+    emit_json(out, results, backend_name(),
+              layout == TSMM_COL_MAJOR ? "col" : "row",
+              threads, geo_req, geo_all);
     printf("Wrote %s\n", out);
     return 0;
 }
