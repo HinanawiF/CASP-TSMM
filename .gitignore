@@ -15,6 +15,14 @@ tsmm_scale_*.out
 # 课程内部资料, 禁止上传
 *.pptx
 并行处理课程计算平台使用方法.pptx
+课程报告.pdf
+
+# LaTeX 编译辅助文件
+*.aux
+*.log
+*.out
+*.toc
+*.synctex.gz
 
 # 系统/编辑器
 .DS_Store
